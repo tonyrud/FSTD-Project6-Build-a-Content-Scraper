@@ -22,5 +22,12 @@
   "bugs": {
     "url": "https://github.com/tonyrud/FSTD-Project6-Build-a-Content-Scraper/issues"
   },
-  "homepage": "https://github.com/tonyrud/FSTD-Project6-Build-a-Content-Scraper#readme"
+  "homepage": "https://github.com/tonyrud/FSTD-Project6-Build-a-Content-Scraper#readme",
+  "dependencies": {
+    "cheerio": "^0.22.0",
+    "csv-write-stream": "^2.0.0",
+    "moment": "^2.17.1",
+    "node-fetch": "^1.6.3",
+    "request": "^2.79.0"
+  }
 }
