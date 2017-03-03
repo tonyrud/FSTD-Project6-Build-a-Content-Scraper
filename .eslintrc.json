@@ -9,13 +9,14 @@
     "extends": "airbnb",
     "parserOptions": {
         "ecmaFeatures": {
-            "jsx": true
+            "jsx": false
         },
         "sourceType": "module"
     },
     "rules": {
         "no-const-assign": "warn",
         "no-this-before-super": "warn",
+        "func-names": 0,
         "one-var": 0,
         "indent": 0,
         "no-else-return": 0,

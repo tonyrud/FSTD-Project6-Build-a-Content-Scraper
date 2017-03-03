@@ -11,83 +11,112 @@ const fs = require('fs'),
       directory = 'data/',
       urlRoot = 'http://shirts4mike.com/',
       urlAllShirts = 'shirts.php',
-
+      errorFileName = 'scraper-error.log',
 
       //    setups and init variables
-      writer = csvWriter({
-            headers: ['Title', 'Price', 'ImageURL', 'URL', 'Time']
-      });
-shirtItems = [];
+      writer = csvWriter(),
+      scrapedContent = [];
 
 //    check if data directory exists, if it does continue or create if it doesn't
 function directorySetup() {
+      const date = moment().format('YYYY-MM-DD');
       if (!fs.existsSync(directoryRoot + directory)) {
             fs.mkdirSync(directory);
-            const date = moment().format('YYYY-MM-DD');
-            writer.pipe(fs.createWriteStream(`${directoryRoot}${directory}${date}.csv`))
       }
+      // create csv file at current date
+      writer.pipe(fs.createWriteStream(`${directoryRoot}${directory}${date}.csv`));
 }
+
+//create date when error occurs
+const createErrDate = () => {
+      const timezone = new Date().toString().split(' ')[5],
+            date = moment().format('ddd MMM Do YYYY h:mm:ssa');
+      return `${date} ${timezone}`;
+};
 
 //    error handling from promise
 function errorHandler(error) {
-      console.error(`Nope! ${error}`);
-      Error(`'Didn't Work :(`);
+      console.error(`There was a problem connecting to ${urlRoot}.Error was <${error.message}>. Please check "${directory}${errorFileName}" for more details on the issue.`);
+      fs.appendFile(directoryRoot + directory + errorFileName, `${createErrDate()} <${error}>\n`);
 }
 
-
-//    check that the root url is okay
-const checkUrlStatus = fetch(urlRoot)
-      .then(data => {
-            console.log(data)
-      })
-      .then(data => {
-            // console.log(data);
-      })
-      .catch(errorHandler);
-
+//create directory and csv file
 directorySetup();
 
-function getShirtUrls() {
-      const items = []
-      request(urlAllShirts, (error, response, body) => {
-            if (!error && response.statusCode === 200) {
-                  const $ = cheerio.load(body);
-                  $('.products a').each(function (i, el) {
-                        items[i] = urlRoot + $(this).attr('href')
-                  })
-                  // console.log(items);
-            }
-            // console.log(items);
+const sortArray = (array, key) => array.sort((a, b) => {
+      const compare1 = a[key],
+            compare2 = b[key];
+      return ((compare1 < compare2) ? -1 : ((compare1 > compare2) ? 1 : 0));
+});
+
+const writeCsvLine = (content) => {
+      writer.write(content);
+};
+
+function getShirtsBody(data) {
+      return new Promise((resolve, reject) => {
+            request(data.url + urlAllShirts, (error, response, body) => {
+                  console.dir(response.statusCode);
+                  if (!error && response.statusCode === 200) {
+                        // return body of the current page
+                        resolve(body);
+                  } else {
+                        reject(Error('error in get shirtsBody'));
+                  }
+            });
       });
-      return items;
-      return 2
 }
 
-function getShirtInfo(url) {
-      // console.log(url);
-      fetch(url)
-            .then
-      const arr = []
-      // request(url, (error, response, body) => {
-      //       if (!error && response.statusCode === 200) {
-      //             const $ = cheerio.load(body); 
-      //             arr.push({
-      //                   title: $('.shirt-details h1').html(),
-      //                   price: $('.price').html(),
-      //                   imgUrl: $('.shirt-picture img').attr('src'),
-      //                   url: url,
-      //                   time: moment().format('ddd MMM Do YYYY h:mm:ss a'),
-      //             })
-      //       }
-      // });
-      // return arr
+function getUrls(pageBody) {
+      const $ = cheerio.load(pageBody),
+            urls = [];
+
+      $('.products a').each(function (i) {
+            urls[i] = urlRoot + $(this).attr('href');
+      });
+      return urls;
 }
 
-function createCSV(content) {
-      writer.write([
-            "world",
-            "bar",
-            "taco"
-      ])
-      writer.end();
+
+function scrapeUrls(urls) {
+      // return promises for each url in urls array
+      const detailsArr = urls.map(url => new Promise((resolve, reject) => {
+            request(url, (error, response, body) => {
+                  if (!error) {
+                        const $ = cheerio.load(body),
+                              price = $('.price').html();
+                        // add elements to array for adding to csv spreadsheet
+                        scrapedContent.push({
+                              Title: $('.shirt-details h1').text().slice(price.length + 1),
+                              Price: price,
+                              ImageURL: $('.shirt-picture img').attr('src'),
+                              URL: url,
+                              Time: moment().format('h:mm:ss a'),
+                        });
+                        resolve();
+                  } else {
+                        reject(Error('error in get scrapeUrls'));
+                  }
+            });
+      }));
+      Promise.all(detailsArr)
+            .then(() => {
+                  // sort the array numerically based on imageUrl name
+                  sortArray(scrapedContent, 'ImageURL');
+                  scrapedContent.forEach((el) => {
+                        writeCsvLine(el);
+                  });
+                  writer.end();
+            });
 }
+
+//    check that the root url is okay
+fetch(urlRoot)
+      // send url to get the body of the shirts page
+      .then(getShirtsBody)
+      // send the body of shirts to get each individual shirt link
+      .then(getUrls)
+      // send each individual shirt link to get it's contents
+      .then(scrapeUrls)
+      // let user know if any errors
+      .catch(errorHandler);
