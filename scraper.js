@@ -4,7 +4,7 @@ const fs = require('fs'),
       moment = require('moment'),
       fetch = require('node-fetch'),
       request = require('request'),
-      csvWriter = require('csv-write-stream'),
+      csv = require('fast-csv'),
 
       //    paths
       directoryRoot = ('./'),
@@ -14,18 +14,21 @@ const fs = require('fs'),
       errorFileName = 'scraper-error.log',
 
       //    setups and init variables
-      writer = csvWriter(),
+      csvStream = csv.createWriteStream({
+            headers: true
+      }),
+      date = moment().format('YYYY-MM-DD'),
       scrapedContent = [];
 
-//    check if data directory exists, if it does continue or create if it doesn't
-function directorySetup() {
-      const date = moment().format('YYYY-MM-DD');
+//    check if data directory exists, if it does continue or create if it
+(function directorySetup() {
       if (!fs.existsSync(directoryRoot + directory)) {
             fs.mkdirSync(directory);
       }
-      // create csv file at current date
-      writer.pipe(fs.createWriteStream(`${directoryRoot}${directory}${date}.csv`));
-}
+})();
+
+// create csv file at current date
+csvStream.pipe(fs.createWriteStream(`${directoryRoot}${directory}${date}.csv`));
 
 //create date when error occurs
 const createErrDate = () => {
@@ -40,9 +43,6 @@ function errorHandler(error) {
       fs.appendFile(directoryRoot + directory + errorFileName, `${createErrDate()} <${error}>\n`);
 }
 
-//create directory and csv file
-directorySetup();
-
 const sortArray = (array, key) => array.sort((a, b) => {
       const compare1 = a[key],
             compare2 = b[key];
@@ -50,7 +50,7 @@ const sortArray = (array, key) => array.sort((a, b) => {
 });
 
 const writeCsvLine = (content) => {
-      writer.write(content);
+      csvStream.write(content);
 };
 
 function getShirtsBody(data) {
@@ -106,7 +106,7 @@ function scrapeUrls(urls) {
                   scrapedContent.forEach((el) => {
                         writeCsvLine(el);
                   });
-                  writer.end();
+                  csvStream.end();
             });
 }
 
